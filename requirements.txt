@@ -1,0 +1,4 @@
+dotenv==0.9.9
+lcpcli==0.2.5
+lxml==4.9.3
+python-dotenv==1.1.1
