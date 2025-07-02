@@ -61,7 +61,5 @@ class Nakala:
                 with open(pwav, "wb") as owav:
                     owav.write(rwav.content)
                 print(f"Download of {wav['name']} complete at {pwav}")
-            if n > 9:
-                break
             n += 1
         print(f"Found {n} files")

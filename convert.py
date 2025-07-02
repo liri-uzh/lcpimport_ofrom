@@ -107,8 +107,19 @@ class Convert:
 
                 for n, form in enumerate(formSpan):
                     pos = posSpan[n].text.split(":")[0]
-                    lemma = lemmaSpan[n].text.split("|")[0]
-                    t = utterance.Token(form.text, pos=pos, lemma=lemma)
+                    lemma, agreement, conjunction, filler, key = lemmaSpan[
+                        n
+                    ].text.split("|")
+                    misc = {}
+                    if agreement:
+                        misc["agreement"] = agreement
+                    if filler:
+                        misc["filler"] = filler
+                    if key:
+                        misc["key"] = key
+                    if conjunction:
+                        misc["conjunction"] = conjunction
+                    t = utterance.Token(form.text, pos=pos, lemma=lemma, misc=misc)
                     t_from, t_to = (times[form.get("from")], times[form.get("to")])
                     t.set_time(t_from, max(t_to, t_from + 1))
 
