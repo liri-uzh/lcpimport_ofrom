@@ -104,9 +104,16 @@ class Convert:
                 lemmaSpan = block.findall(
                     ".//{*}spanGrp[@type='" + person_id + "[lemma]']/{*}span"
                 )
+                mwuSpan = block.findall(
+                    ".//{*}spanGrp[@type='" + person_id + "[tok_mwu]']/{*}span"
+                )
+                mwuPosSpan = block.findall(
+                    ".//{*}spanGrp[@type='" + person_id + "[pos_mwu]']/{*}span"
+                )
 
+                tokens = {}
                 for n, form in enumerate(formSpan):
-                    pos = posSpan[n].text.split(":")[0]
+                    pos = posSpan[n].text  # .split(":")[0]
                     lemma, agreement, conjunction, filler, key = lemmaSpan[
                         n
                     ].text.split("|")
@@ -122,7 +129,23 @@ class Convert:
                     t = utterance.Token(form.text, pos=pos, lemma=lemma, misc=misc)
                     t_from, t_to = (times[form.get("from")], times[form.get("to")])
                     t.set_time(t_from, max(t_to, t_from + 1))
-
+                    tokens[form.get("from") + form.get("to")] = t
+                for n, mwu in enumerate(mwuSpan):
+                    mwuFrom = mwu.get("from", "")
+                    mwuTo = mwu.get("to", "")
+                    mwuFromTo = mwuFrom + mwuTo
+                    if mwuFromTo in tokens:
+                        continue
+                    mwu_tokens = []
+                    for token_id, token in tokens.items():
+                        if not mwu_tokens and not token_id.startswith(f"{mwuFrom}#T"):
+                            continue
+                        if int(token_id.split("#T")[2]) > int(mwuTo.lstrip("#T")):
+                            break
+                        mwu_tokens.append(token)
+                    mwuForm = mwu.text
+                    mwuPos = mwuPosSpan[n].text  # .split(":")[0]
+                    utterance.Mwu(*mwu_tokens, form=mwuForm, pos=mwuPos)
                 utterance.make()
 
             itv.make()
