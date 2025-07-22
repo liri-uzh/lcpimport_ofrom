@@ -138,14 +138,16 @@ class Convert:
                         continue
                     mwu_tokens = []
                     for token_id, token in tokens.items():
-                        if not mwu_tokens and not token_id.startswith(f"{mwuFrom}#T"):
-                            continue
-                        if int(token_id.split("#T")[2]) > int(mwuTo.lstrip("#T")):
+                        tokenFrom, tokenTo = [int(x) for x in token_id.split("#T")[1:]]
+                        if tokenTo > int(mwuTo.lstrip("#T")):
                             break
+                        if tokenFrom < int(mwuFrom.lstrip("#T")):
+                            continue
                         mwu_tokens.append(token)
                     mwuForm = mwu.text
                     mwuPos = mwuPosSpan[n].text  # .split(":")[0]
-                    utterance.Mwu(*mwu_tokens, form=mwuForm, pos=mwuPos)
+                    if mwu_tokens:
+                        utterance.Mwu(*mwu_tokens, form=mwuForm, pos=mwuPos)
                 utterance.make()
 
             itv.make()
