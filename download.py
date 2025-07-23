@@ -7,6 +7,7 @@ import requests
 NAKALA_API = "https://api.nakala.fr/"
 PER_PAGE = 50
 NPAGE = "{npage}"
+CONCURRENT_DOWNLOADS = 4
 
 
 class Nakala:
@@ -14,11 +15,11 @@ class Nakala:
         self.collection_id = collection_id
 
     @classmethod
-    async def download_audio(self, session, wav, dl_template, did, pwav):
+    async def download_audio(self, session, sem, wav, dl_template, did, pwav):
         print(f"Downloading {wav['name']}...")
         url = dl_template.format(did=did, sha=wav["sha1"])
         try:
-            async with session.get(url=url) as response:
+            async with sem, session.get(url=url) as response:
                 rwav = await response.read()
                 with open(pwav, "wb") as owav:
                     owav.write(rwav)
@@ -29,9 +30,10 @@ class Nakala:
     @classmethod
     async def download_audios(self, all_audios: list):
         print("Downloading the audios")
+        sem = asyncio.Semaphore(CONCURRENT_DOWNLOADS)
         async with aiohttp.ClientSession() as session:
             ret = await asyncio.gather(
-                *(Nakala.download_audio(session, *params) for params in all_audios)
+                *(Nakala.download_audio(session, sem, *params) for params in all_audios)
             )
         print("Finished downloading the audios")
 
