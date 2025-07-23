@@ -1,3 +1,5 @@
+import aiohttp
+import asyncio
 import hashlib
 import os
 import requests
@@ -10,6 +12,28 @@ NPAGE = "{npage}"
 class Nakala:
     def __init__(self, collection_id: str):
         self.collection_id = collection_id
+
+    @classmethod
+    async def download_audio(self, session, wav, dl_template, did, pwav):
+        print(f"Downloading {wav['name']}...")
+        url = dl_template.format(did=did, sha=wav["sha1"])
+        try:
+            async with session.get(url=url) as response:
+                rwav = await response.read()
+                with open(pwav, "wb") as owav:
+                    owav.write(rwav)
+            print(f"Download of {wav['name']} complete at {pwav}")
+        except Exception as e:
+            print("Unable to get url {} due to {}.".format(url, e.__class__))
+
+    @classmethod
+    async def download_audios(self, all_audios: list):
+        print("Downloading the audios")
+        async with aiohttp.ClientSession() as session:
+            ret = await asyncio.gather(
+                *(Nakala.download_audio(session, *params) for params in all_audios)
+            )
+        print("Finished downloading the audios")
 
     def list_files(self):
         url_template = f"{NAKALA_API}collections/{self.collection_id}/datas?page={NPAGE}&limit={PER_PAGE}"
@@ -24,9 +48,12 @@ class Nakala:
             if rjson["currentPage"] == rjson["lastPage"]:
                 break
 
-    def download_all(self, where: str = "output"):
+    def download_all(self, where: str = "output", do_audio: bool = True):
         if not os.path.exists(where):
             os.makedirs(where)
+
+        all_audios = []
+
         dl_template = NAKALA_API + "data/{did}/{sha}?content-disposition=attachment"
         n = 0
         for id, files in self.list_files():
@@ -53,13 +80,15 @@ class Nakala:
                 os.path.exists(pwav)
                 and hashlib.sha1(open(pwav, "rb").read()).hexdigest() == wav["sha1"]
             )
-            if skip_wav:
+            if not do_audio:
+                print("Asked to skip audio, so skipping audio")
+            elif skip_wav:
                 print(f"Found {pwav} with same sha1 -- skipping")
             else:
-                print(f"Downloading {wav['name']}...")
-                rwav = requests.get(dl_template.format(did=did, sha=wav["sha1"]))
-                with open(pwav, "wb") as owav:
-                    owav.write(rwav.content)
-                print(f"Download of {wav['name']} complete at {pwav}")
+                all_audios.append((wav, dl_template, did, pwav))
+                print(f"Scheduled a download for {wav['name']}")
             n += 1
         print(f"Found {n} files")
+
+        if all_audios:
+            asyncio.run(Nakala.download_audios(all_audios))

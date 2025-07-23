@@ -1,3 +1,4 @@
+aiohttp==3.12.14
 dotenv==0.9.9
 lcpcli==0.2.5
 lxml==4.9.3

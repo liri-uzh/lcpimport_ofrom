@@ -80,6 +80,10 @@ class Convert:
 
             for block in tree.findall(".//{*}body/{*}div/{*}annotationBlock"):
                 original_text = block.find(".//{*}u/{*}seg").text
+
+                if original_text == "_":
+                    continue
+
                 person_id = str(block.get("who"))
                 xmlid = block.get(f"{namespace}id")
                 ana = block.get("ana")
@@ -114,7 +118,7 @@ class Convert:
                 tokens = {}
                 for n, form in enumerate(formSpan):
                     pos = posSpan[n].text  # .split(":")[0]
-                    lemma, agreement, conjunction, filler, key = lemmaSpan[
+                    lemma, agreement, conjunction, filler, key, *_ = lemmaSpan[
                         n
                     ].text.split("|")
                     misc = {}
