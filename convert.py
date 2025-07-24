@@ -34,6 +34,7 @@ class Convert:
     def process_document(self, filename: str):
 
         filepath = os.path.join(self.input, filename)
+        print(f"Processing {filepath}")
 
         # First replace utf encoding
         replace_first_line(filepath, "utf_8", "utf-8")
@@ -160,6 +161,7 @@ class Convert:
 
         # Restore utf encoding for future sha1 comparison purposes
         replace_first_line(filepath, "utf-8", "utf_8")
+        print(f"Done processing {filepath}")
 
     def convert(self, output: str = "."):
 
@@ -167,6 +169,7 @@ class Convert:
             shutil.rmtree(output)
         os.makedirs(output)
 
+        print(f"Converting files in {self.input} and placing the output in {output}")
         for f in os.listdir(self.input):
             if not f.endswith(".tei"):
                 continue
@@ -208,3 +211,5 @@ results => plain
 
         with open(config_path, "w") as config_output:
             config_output.write(json.dumps(config, indent=4))
+
+        print(f"Conversion complete")

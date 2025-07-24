@@ -65,14 +65,21 @@ def run(
                 touch(os.path.join(media_dir, audiofile))
 
     else:
+        print("Copying audio files to the corpus folder...")
         for f in os.listdir(DOWNLOAD_DIR):
             if not f.endswith(".wav"):
                 continue
             shutil.copy(os.path.join(DOWNLOAD_DIR, f), os.path.join(media_dir, f))
+        print("Done copying audio files to the corpus folder!")
 
     if not upload:
+        print("Not uploading, done!")
         return
 
+    if test:
+        print(
+            "Warning: you are uploading to your local instance of LCP, not to production."
+        )
     Lcpcli(
         corpus=CORPUS_DIR,
         api_key=apikey,
