@@ -19,6 +19,8 @@ API_KEY = os.environ.get("API_KEY", "")
 API_SECRET = os.environ.get("API_SECRET", "")
 PROJECT = os.environ.get("PROJECT", "")
 
+AUDIO_FORMAT = "mp3"
+
 
 def touch(fname):
     try:
@@ -44,7 +46,7 @@ def run(
 
     if convert:
         cvt = Convert(DOWNLOAD_DIR)
-        cvt.convert(output=CORPUS_DIR)
+        cvt.convert(output=CORPUS_DIR, audio_format=AUDIO_FORMAT)
 
     # copy wav files
     media_dir = os.path.join(CORPUS_DIR, "media")
@@ -65,12 +67,25 @@ def run(
                 touch(os.path.join(media_dir, audiofile))
 
     else:
-        print("Copying audio files to the corpus folder...")
+        if AUDIO_FORMAT:
+            import ffmpeg
+
+            print(f"Converting the audio files to {AUDIO_FORMAT}")
+        else:
+            print("Copying the audio files to the corpus folder...")
         for f in os.listdir(DOWNLOAD_DIR):
             if not f.endswith(".wav"):
                 continue
-            shutil.copy(os.path.join(DOWNLOAD_DIR, f), os.path.join(media_dir, f))
-        print("Done copying audio files to the corpus folder!")
+            dest_fn = f[:-4] + f".{AUDIO_FORMAT}" if AUDIO_FORMAT else f
+            source = os.path.join(DOWNLOAD_DIR, f)
+            dest = os.path.join(media_dir, dest_fn)
+            if os.path.exists(dest):
+                print(f"Found an existing file at {dest} -- skipping")
+            if AUDIO_FORMAT:
+                ffmpeg.input(source).output(dest).run()
+            else:
+                shutil.copy(source, dest)
+        print("All the audio files were placed to the corpus folder!")
 
     if not upload:
         print("Not uploading, done!")

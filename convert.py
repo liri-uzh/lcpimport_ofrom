@@ -31,7 +31,7 @@ class Convert:
         ms = int(ms)
         return self.time_offset + round(25.0 * ms / 1000.0)
 
-    def process_document(self, filename: str):
+    def process_document(self, filename: str, audio_format: str = ""):
 
         filepath = os.path.join(self.input, filename)
         print(f"Processing {filepath}")
@@ -68,6 +68,15 @@ class Convert:
                 "#" + x.get(f"{namespace}id"): self.get_frame(x.get("interval") or 0)
                 for x in tree.findall(".//{*}timeline/{*}when")
             }
+
+            if audio_format:
+                base, fn = os.path.split(audio)
+                audio = os.path.join(
+                    base,
+                    ".".join(
+                        (fn.split(".")[:-1] if "." in fn else [fn]) + audio_format
+                    ),
+                )
 
             itv = self.c.Interview(filename=filename, audio=audio, name=name)
             end_itv = times[
@@ -163,7 +172,7 @@ class Convert:
         replace_first_line(filepath, "utf-8", "utf_8")
         print(f"Done processing {filepath}")
 
-    def convert(self, output: str = "."):
+    def convert(self, output: str = ".", audio_format: str = ""):
 
         if os.path.exists(output):
             shutil.rmtree(output)
@@ -173,7 +182,7 @@ class Convert:
         for f in os.listdir(self.input):
             if not f.endswith(".tei"):
                 continue
-            self.process_document(f)
+            self.process_document(f, audio_format=audio_format)
 
         self.c.make(output)
 
@@ -212,4 +221,4 @@ results => plain
         with open(config_path, "w") as config_output:
             config_output.write(json.dumps(config, indent=4))
 
-        print(f"Conversion complete")
+        print(f"TEI conversion complete")
