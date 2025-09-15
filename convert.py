@@ -3,8 +3,10 @@ import os
 import shutil
 import xml.etree.ElementTree as ET
 
-from lxml import etree
+from datetime import datetime
 from lcpcli.builder import Corpus
+from lxml import etree
+from xml.etree.ElementTree import Element, ElementTree
 
 
 def replace_first_line(path: str, to_replace: str = "", replace_content: str = ""):
@@ -15,6 +17,12 @@ def replace_first_line(path: str, to_replace: str = "", replace_content: str = "
         f.write(newL)
 
 
+def find(node: ElementTree | Element, mask: str) -> Element:
+    r = node.find(".//{*}" + mask)
+    assert r is not None, ReferenceError(f"Mask {mask} found no node on {node}")
+    return r
+
+
 class Convert:
     def __init__(self, input: str):
         self.input = input
@@ -23,8 +31,11 @@ class Convert:
             document="Interview",
             segment="Utterance",
             description="Le corpus Oral de Français de Suisse Romande. Université de Neuchâtel",
+            authors="Avanzi Mathieu, Béguelin Marie-José, Corminboeuf Gilles, Diémoz Federica, Johnsen Laure Anne",
+            date=datetime.today().strftime("%Y-%m-%d"),
+            url="https://ofrom.unine.ch/",
         )
-        self.agents = {}
+        self.agents: dict = {}
         self.time_offset = 0
 
     def get_frame(self, ms: str | int):
@@ -43,18 +54,26 @@ class Convert:
 
             parser = etree.XMLParser(recover=True, encoding="utf-8")
             tree = ET.parse(input, parser=parser)  # type: ignore
-            # m = re.match(r"\{.*\}", tree.getroot().tag)
-            # namespace = m.group(0) if m else ""
             namespace = "{http://www.w3.org/XML/1998/namespace}"
 
-            audio = tree.find(".//{*}media").get("url")
+            header = find(tree, "teiHeader")
+
+            metadata: dict = {}
+            for note in header.findall(".//{*}note[@type='METADATA']/{*}note"):
+                attr = note.get("type", "").replace("-", "_")
+                value = (note.text or "").strip()
+                if not attr or not value:
+                    continue
+                metadata[attr] = value
+
+            metadata["name"] = find(header, "title/{*}desc").text or filename
+            audio = find(header, "media").get("url", "")
             if not os.path.exists(os.path.join(self.input, audio)):
                 print(f"WARNING: could not find audio file {audio} in {self.input}")
-
-            name = tree.find(".//{*}title/{*}desc").text
+            metadata["audio"] = audio
 
             for person in tree.findall(".//{*}listPerson/{*}person"):
-                person_id = person.find(".//{*}altGrp/{*}alt").get("type")
+                person_id = find(person, "altGrp/{*}alt").get("type")
                 if person_id in self.agents:
                     continue
                 self.agents[person_id] = self.c.Agent(
@@ -65,7 +84,8 @@ class Convert:
                 )
 
             times = {
-                "#" + x.get(f"{namespace}id"): self.get_frame(x.get("interval") or 0)
+                "#"
+                + x.get(f"{namespace}id", ""): self.get_frame(x.get("interval") or 0)
                 for x in tree.findall(".//{*}timeline/{*}when")
             }
 
@@ -73,14 +93,13 @@ class Convert:
                 base, fn = os.path.split(audio)
                 audio = os.path.join(
                     base,
-                    ".".join(
-                        (fn.split(".")[:-1] if "." in fn else [fn]) + audio_format
-                    ),
+                    ".".join(fn.split(".")[:-1] if "." in fn else [fn])
+                    + f".{audio_format}",
                 )
 
-            itv = self.c.Interview(filename=filename, audio=audio, name=name)
+            itv = self.c.Interview(filename=filename, **metadata)
             end_itv = times[
-                tree.find(".//{*}body/{*}div/{*}head/{*}note[@type='end']").text
+                find(tree, "body/{*}div/{*}head/{*}note[@type='end']").text or ""
             ]
             itv.set_time(
                 self.time_offset,
@@ -89,7 +108,7 @@ class Convert:
             itv.set_media("audio", audio)
 
             for block in tree.findall(".//{*}body/{*}div/{*}annotationBlock"):
-                original_text = block.find(".//{*}u/{*}seg").text
+                original_text = find(block, "u/{*}seg").text
 
                 if original_text == "_":
                     continue
@@ -104,8 +123,8 @@ class Convert:
                     ana=ana,
                 )
                 utt_start, utt_end = (
-                    times[block.get("start")],
-                    times[block.get("end")],
+                    times[block.get("start", "")],
+                    times[block.get("end", "")],
                 )
                 utterance.set_time(utt_start, max(utt_end, utt_start + 1))
 
@@ -127,23 +146,15 @@ class Convert:
 
                 tokens = {}
                 for n, form in enumerate(formSpan):
-                    pos = posSpan[n].text  # .split(":")[0]
-                    lemma, agreement, conjunction, filler, key, *_ = lemmaSpan[
-                        n
-                    ].text.split("|")
-                    misc = {}
-                    if agreement:
-                        misc["agreement"] = agreement
-                    if filler:
-                        misc["filler"] = filler
-                    if key:
-                        misc["key"] = key
-                    if conjunction:
-                        misc["conjunction"] = conjunction
-                    t = utterance.Token(form.text, pos=pos, lemma=lemma, misc=misc)
-                    t_from, t_to = (times[form.get("from")], times[form.get("to")])
+                    pos = posSpan[n].text
+                    lemma = lemmaSpan[n].text or ""
+                    t = utterance.Token(form.text, pos=pos, lemma=lemma)
+                    t_from, t_to = (
+                        times[form.get("from", "")],
+                        times[form.get("to", "")],
+                    )
                     t.set_time(t_from, max(t_to, t_from + 1))
-                    tokens[form.get("from") + form.get("to")] = t
+                    tokens[form.get("from", "") + form.get("to", "")] = t
                 for n, mwu in enumerate(mwuSpan):
                     mwuFrom = mwu.get("from", "")
                     mwuTo = mwu.get("to", "")
@@ -159,7 +170,7 @@ class Convert:
                             continue
                         mwu_tokens.append(token)
                     mwuForm = mwu.text
-                    mwuPos = mwuPosSpan[n].text  # .split(":")[0]
+                    mwuPos = mwuPosSpan[n].text
                     if mwu_tokens:
                         utterance.Mwu(*mwu_tokens, form=mwuForm, pos=mwuPos)
                 utterance.make()
