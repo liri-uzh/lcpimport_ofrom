@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import shutil
 import xml.etree.ElementTree as ET
 
@@ -61,6 +62,7 @@ class Convert:
             metadata: dict = {}
             for note in header.findall(".//{*}note[@type='METADATA']/{*}note"):
                 attr = note.get("type", "").replace("-", "_")
+                attr = re.sub(r"_(.)", lambda m: m[1].upper(), attr)
                 value = (note.text or "").strip()
                 if not attr or not value:
                     continue
